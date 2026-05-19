@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GPX Route Comparer</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>GPX Route Comparer</h1>
+      <p>Compare two rides from the same manually selected starting line.</p>
+    </header>
+
+    <main>
+      <section class="panel controls">
+        <div class="file-row">
+          <label>
+            Route A (today)
+            <input id="fileA" type="file" accept=".gpx,application/gpx+xml" />
+          </label>
+          <label>
+            Route B (yesterday)
+            <input id="fileB" type="file" accept=".gpx,application/gpx+xml" />
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="drawLineBtn">Set starting line</button>
+          <button id="clearBtn">Clear</button>
+        </div>
+
+        <div class="playback-row">
+          <button id="playPauseBtn" disabled>Play</button>
+          <label>
+            Speed
+            <select id="speedSelect" disabled>
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+              <option value="8">8x</option>
+              <option value="16">16x</option>
+            </select>
+          </label>
+          <label class="scrub-label">
+            Timeline
+            <input id="timeline" type="range" min="0" max="0" step="1" value="0" disabled />
+          </label>
+          <span id="timeLabel">00:00</span>
+        </div>
+
+        <p id="status">Load two GPX files, then draw a line on the map to define the synchronized start.</p>
+      </section>
+
+      <section class="panel">
+        <div id="map" aria-label="Map for route comparison"></div>
+      </section>
+    </main>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="app.js"></script>
+  </body>
+</html>
