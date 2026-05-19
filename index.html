@@ -22,12 +22,14 @@
       <section class="panel controls">
         <div class="file-row">
           <label>
-            Route A (today)
+            <span class="route-label"><span class="route-dot route-a"></span>Route A</span>
             <input id="fileA" type="file" accept=".gpx,application/gpx+xml" />
+            <span id="fileNameA" class="file-name">No file selected</span>
           </label>
           <label>
-            Route B (yesterday)
+            <span class="route-label"><span class="route-dot route-b"></span>Route B</span>
             <input id="fileB" type="file" accept=".gpx,application/gpx+xml" />
+            <span id="fileNameB" class="file-name">No file selected</span>
           </label>
         </div>
 
@@ -38,25 +40,23 @@
 
         <div class="playback-row">
           <button id="playPauseBtn" disabled>Play</button>
-          <label>
-            Speed
-            <select id="speedSelect" disabled>
-              <option value="0.5">0.5x</option>
-              <option value="1" selected>1x</option>
-              <option value="2">2x</option>
-              <option value="4">4x</option>
-              <option value="8">8x</option>
-              <option value="16">16x</option>
-            </select>
-          </label>
+          <fieldset id="speedGroup" disabled>
+            <legend>Speed</legend>
+            <label><input type="radio" name="speed" value="0.5" />0.5x</label>
+            <label><input type="radio" name="speed" value="1" checked />1x</label>
+            <label><input type="radio" name="speed" value="2" />2x</label>
+            <label><input type="radio" name="speed" value="4" />4x</label>
+            <label><input type="radio" name="speed" value="8" />8x</label>
+            <label><input type="radio" name="speed" value="16" />16x</label>
+          </fieldset>
           <label class="scrub-label">
             Timeline
             <input id="timeline" type="range" min="0" max="0" step="1" value="0" disabled />
           </label>
           <span id="timeLabel">00:00</span>
         </div>
+        <p id="errorMessage" class="error-message" role="alert" hidden></p>
 
-        <p id="status">Load two GPX files, then draw a line on the map to define the synchronized start.</p>
       </section>
 
       <section class="panel">
