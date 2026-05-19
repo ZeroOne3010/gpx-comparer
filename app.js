@@ -15,7 +15,8 @@ const ui = {
   timeline: document.getElementById('timeline'),
   timeLabel: document.getElementById('timeLabel'),
   fileNameA: document.getElementById('fileNameA'),
-  fileNameB: document.getElementById('fileNameB')
+  fileNameB: document.getElementById('fileNameB'),
+  errorMessage: document.getElementById('errorMessage')
 };
 
 const state = {
@@ -48,6 +49,7 @@ ui.timeline.addEventListener('input', () => {
 map.on('click', onMapClick);
 
 function clearAll() {
+  clearError();
   stopPlayback();
   state.routes.forEach((route) => {
     route.layerGroup?.remove();
@@ -80,6 +82,7 @@ function clearAll() {
 
 async function handleFileLoad(routeIdx, file) {
   if (!file) return;
+  clearError();
   try {
     const text = await file.text();
     const points = parseGpx(text);
@@ -109,8 +112,18 @@ async function handleFileLoad(routeIdx, file) {
     fitRoutes();
     attemptSyncAndPreparePlayback();
   } catch (err) {
-    console.error(`Could not load GPX: ${err.message}`);
+    showError(`Could not load ${file.name}: ${err.message}`);
   }
+}
+
+function showError(message) {
+  ui.errorMessage.textContent = message;
+  ui.errorMessage.hidden = false;
+}
+
+function clearError() {
+  ui.errorMessage.textContent = '';
+  ui.errorMessage.hidden = true;
 }
 function updateFileName(routeIdx, name) {
   if (routeIdx === 0) ui.fileNameA.textContent = name;

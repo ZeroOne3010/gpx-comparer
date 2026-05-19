@@ -113,9 +113,15 @@ input:disabled {
   accent-color: #45cf0f;
 }
 
-#status {
-  font-size: 0.95rem;
-  color: var(--muted);
+.error-message {
+  margin: 0.8rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #ef9a9a;
+  border-radius: 8px;
+  background: #fff1f1;
+  color: #8f1d1d;
+  font-size: 0.92rem;
+  font-weight: 600;
 }
 .route-label {
   display: inline-flex;
