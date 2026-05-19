@@ -1,0 +1,136 @@
+:root {
+  --bg: #f7fff5;
+  --panel: #ffffff;
+  --ink: #153223;
+  --accent: #75ff35;
+  --accent-dark: #44cc0f;
+  --muted: #5f7b6e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: radial-gradient(circle at top right, #e9ffe0 0%, var(--bg) 50%);
+  color: var(--ink);
+}
+
+header {
+  padding: 1rem 1.25rem 0.5rem;
+}
+
+header h1 {
+  margin: 0;
+}
+
+header p {
+  margin-top: 0.35rem;
+  color: var(--muted);
+}
+
+main {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 1rem;
+  padding: 0 1rem 1rem;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid #dbf5cd;
+  border-radius: 12px;
+  box-shadow: 0 5px 16px rgb(24 87 12 / 8%);
+}
+
+.controls {
+  padding: 1rem;
+}
+
+.file-row,
+.playback-row {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.file-row {
+  grid-template-columns: 1fr;
+}
+
+label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+input[type='file'],
+select,
+button {
+  font: inherit;
+  border-radius: 8px;
+}
+
+input[type='file'],
+select {
+  border: 1px solid #cbe8bf;
+  padding: 0.45rem;
+  background: #f7fff5;
+}
+
+.actions {
+  display: flex;
+  gap: 0.6rem;
+  margin: 0.9rem 0;
+}
+
+button {
+  border: 1px solid #91df6f;
+  background: linear-gradient(to bottom, #c4ffa6, var(--accent));
+  color: #153223;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+button:hover:not(:disabled) {
+  background: linear-gradient(to bottom, #a8ff80, var(--accent-dark));
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.scrub-label {
+  grid-column: 1 / -1;
+}
+
+#timeline {
+  width: 100%;
+  accent-color: #45cf0f;
+}
+
+#status {
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+#map {
+  width: 100%;
+  min-height: 72vh;
+  border-radius: 12px;
+}
+
+@media (max-width: 960px) {
+  main {
+    grid-template-columns: 1fr;
+  }
+
+  #map {
+    min-height: 60vh;
+  }
+}
