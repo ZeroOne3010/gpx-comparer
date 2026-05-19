@@ -204,19 +204,34 @@ function onMapClick(e) {
 }
 
 function attemptSyncAndPreparePlayback() {
-  if (!state.startLine || state.routes.length < 2 || state.routes.some((r) => !r)) return;
+  if (!state.startLine) return;
+  const requiredRoutes = [state.routes[0], state.routes[1]];
+  if (requiredRoutes.some((route) => !route)) return;
 
   const [l0, l1] = state.startLine.getLatLngs();
-  for (const route of state.routes) {
+  for (const route of requiredRoutes) {
     route.syncStartIdx = findCrossingIndex(route.points, l0, l1);
     if (route.syncStartIdx === -1) {
+      stopPlayback();
+      for (const resetRoute of requiredRoutes) {
+        if (!resetRoute) continue;
+        resetRoute.syncStartIdx = null;
+        resetRoute.syncTimeline = null;
+      }
+      state.currentSec = 0;
+      state.maxSec = 0;
+      ui.timeline.value = '0';
+      ui.timeline.max = '0';
+      ui.timeline.disabled = true;
+      ui.speedSelect.disabled = true;
+      ui.playPauseBtn.disabled = true;
       setStatus(`${route.name} never crosses the selected line. Pick a different line.`);
       return;
     }
     route.syncTimeline = buildSyncedTimeline(route.points, route.syncStartIdx);
   }
 
-  state.maxSec = Math.ceil(Math.max(...state.routes.map((r) => r.syncTimeline.at(-1).tSec)));
+  state.maxSec = Math.ceil(Math.max(...requiredRoutes.map((r) => r.syncTimeline.at(-1).tSec)));
   state.currentSec = 0;
   ui.timeline.max = String(state.maxSec);
   ui.timeline.value = '0';
