@@ -66,14 +66,13 @@ label {
 }
 
 input[type='file'],
-select,
 button {
   font: inherit;
   border-radius: 8px;
 }
 
 input[type='file'],
-select {
+fieldset {
   border: 1px solid #cbe8bf;
   padding: 0.45rem;
   background: #f7fff5;
@@ -99,7 +98,7 @@ button:hover:not(:disabled) {
 }
 
 button:disabled,
-select:disabled,
+fieldset:disabled,
 input:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -117,6 +116,46 @@ input:disabled {
 #status {
   font-size: 0.95rem;
   color: var(--muted);
+}
+.route-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.route-dot {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 999px;
+  border: 1px solid #11182766;
+}
+
+.route-a { background: #2563eb; }
+.route-b { background: #a21caf; }
+
+.file-name {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+#speedGroup {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#speedGroup legend {
+  font-weight: 600;
+  margin-right: 0.4rem;
+}
+
+#speedGroup label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-weight: 600;
 }
 
 #map {

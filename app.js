@@ -10,10 +10,12 @@ const ui = {
   drawLineBtn: document.getElementById('drawLineBtn'),
   clearBtn: document.getElementById('clearBtn'),
   playPauseBtn: document.getElementById('playPauseBtn'),
-  speedSelect: document.getElementById('speedSelect'),
+  speedGroup: document.getElementById('speedGroup'),
+  speedRadios: [...document.querySelectorAll('input[name="speed"]')],
   timeline: document.getElementById('timeline'),
   timeLabel: document.getElementById('timeLabel'),
-  status: document.getElementById('status')
+  fileNameA: document.getElementById('fileNameA'),
+  fileNameB: document.getElementById('fileNameB')
 };
 
 const state = {
@@ -25,7 +27,8 @@ const state = {
   currentSec: 0,
   maxSec: 0,
   rafId: null,
-  lastFrameTs: null
+  lastFrameTs: null,
+  speedDomain: null
 };
 
 const routeStyles = [
@@ -38,16 +41,11 @@ ui.fileB.addEventListener('change', () => handleFileLoad(1, ui.fileB.files?.[0])
 ui.drawLineBtn.addEventListener('click', toggleDrawMode);
 ui.clearBtn.addEventListener('click', clearAll);
 ui.playPauseBtn.addEventListener('click', togglePlayback);
-ui.speedSelect.addEventListener('change', () => setStatus(`Playback speed set to ${ui.speedSelect.value}x.`));
 ui.timeline.addEventListener('input', () => {
   state.currentSec = Number(ui.timeline.value);
   renderAtTime(state.currentSec);
 });
 map.on('click', onMapClick);
-
-function setStatus(text) {
-  ui.status.textContent = text;
-}
 
 function clearAll() {
   stopPlayback();
@@ -66,14 +64,18 @@ function clearAll() {
   state.drawPoints = [];
   state.currentSec = 0;
   state.maxSec = 0;
+  state.speedDomain = null;
+  ui.fileA.value = '';
+  ui.fileB.value = '';
+  ui.fileNameA.textContent = 'No file selected';
+  ui.fileNameB.textContent = 'No file selected';
   ui.timeline.value = 0;
   ui.timeline.max = 0;
   ui.timeline.disabled = true;
-  ui.speedSelect.disabled = true;
+  ui.speedGroup.disabled = true;
   ui.playPauseBtn.disabled = true;
   ui.playPauseBtn.textContent = 'Play';
   ui.drawLineBtn.textContent = 'Set starting line';
-  setStatus('Cleared. Load two GPX files, then draw a line.');
 }
 
 async function handleFileLoad(routeIdx, file) {
@@ -100,13 +102,19 @@ async function handleFileLoad(routeIdx, file) {
       syncTimeline: null
     };
     state.routes[routeIdx] = route;
-    drawRoute(route);
+    updateFileName(routeIdx, file.name);
+    ui[routeIdx === 0 ? 'fileA' : 'fileB'].value = '';
+    recalculateSpeedDomain();
+    redrawAllRoutes();
     fitRoutes();
-    setStatus('Files loaded. Draw a starting line to synchronize both routes.');
     attemptSyncAndPreparePlayback();
   } catch (err) {
-    setStatus(`Could not load GPX: ${err.message}`);
+    console.error(`Could not load GPX: ${err.message}`);
   }
+}
+function updateFileName(routeIdx, name) {
+  if (routeIdx === 0) ui.fileNameA.textContent = name;
+  if (routeIdx === 1) ui.fileNameB.textContent = name;
 }
 
 function parseGpx(xmlText) {
@@ -141,6 +149,8 @@ function drawRoute(route) {
 }
 
 function drawSpeedSegments(route) {
+  if (!state.speedDomain) return;
+  const {min, max} = state.speedDomain;
   const speeds = [];
   for (let i = 1; i < route.points.length; i += 1) {
     const p0 = route.points[i - 1];
@@ -151,11 +161,6 @@ function drawSpeedSegments(route) {
     speeds.push(speed);
   }
 
-  const finite = speeds.filter(Number.isFinite);
-  if (!finite.length) return;
-
-  const min = Math.min(...finite);
-  const max = Math.max(...finite);
   for (let i = 1; i < route.points.length; i += 1) {
     const speed = speeds[i - 1];
     if (!Number.isFinite(speed)) continue;
@@ -181,7 +186,6 @@ function toggleDrawMode() {
   state.drawMode = !state.drawMode;
   state.drawPoints = [];
   ui.drawLineBtn.textContent = state.drawMode ? 'Click 2 points on map…' : 'Set starting line';
-  setStatus(state.drawMode ? 'Click two points to place the synchronized starting line.' : 'Draw mode off.');
 }
 
 function onMapClick(e) {
@@ -199,7 +203,6 @@ function onMapClick(e) {
   state.drawMode = false;
   state.drawPoints = [];
   ui.drawLineBtn.textContent = 'Set starting line';
-  setStatus('Starting line set.');
   attemptSyncAndPreparePlayback();
 }
 
@@ -223,9 +226,8 @@ function attemptSyncAndPreparePlayback() {
       ui.timeline.value = '0';
       ui.timeline.max = '0';
       ui.timeline.disabled = true;
-      ui.speedSelect.disabled = true;
+      ui.speedGroup.disabled = true;
       ui.playPauseBtn.disabled = true;
-      setStatus(`${route.name} never crosses the selected line. Pick a different line.`);
       return;
     }
     route.syncTimeline = buildSyncedTimeline(route.points, route.syncStartIdx);
@@ -236,10 +238,9 @@ function attemptSyncAndPreparePlayback() {
   ui.timeline.max = String(state.maxSec);
   ui.timeline.value = '0';
   ui.timeline.disabled = false;
-  ui.speedSelect.disabled = false;
+  ui.speedGroup.disabled = false;
   ui.playPauseBtn.disabled = false;
   renderAtTime(0);
-  setStatus('Synchronized. Press Play to compare.');
 }
 
 function findCrossingIndex(points, a, b) {
@@ -290,7 +291,7 @@ function tick(ts) {
   if (!state.lastFrameTs) state.lastFrameTs = ts;
   const dt = (ts - state.lastFrameTs) / 1000;
   state.lastFrameTs = ts;
-  state.currentSec += dt * Number(ui.speedSelect.value);
+  state.currentSec += dt * getPlaybackSpeed();
 
   if (state.currentSec >= state.maxSec) {
     state.currentSec = state.maxSec;
@@ -300,6 +301,9 @@ function tick(ts) {
   ui.timeline.value = String(Math.floor(state.currentSec));
   renderAtTime(state.currentSec);
   state.rafId = requestAnimationFrame(tick);
+}
+function getPlaybackSpeed() {
+  return Number(ui.speedRadios.find((radio) => radio.checked)?.value ?? 1);
 }
 
 function renderAtTime(tSec) {
@@ -342,6 +346,35 @@ function fitRoutes() {
     route.points.forEach((p) => bounds.push([p.lat, p.lon]));
   }
   if (bounds.length) map.fitBounds(bounds, {padding: [30, 30]});
+}
+function recalculateSpeedDomain() {
+  const speeds = [];
+  for (const route of state.routes) {
+    if (!route) continue;
+    for (let i = 1; i < route.points.length; i += 1) {
+      const p0 = route.points[i - 1];
+      const p1 = route.points[i];
+      const dtSec = Number.isFinite(p1.time) && Number.isFinite(p0.time) ? (p1.time - p0.time) / 1000 : NaN;
+      const speed = dtSec > 0 ? haversineM(p0, p1) / dtSec : NaN;
+      if (Number.isFinite(speed)) speeds.push(speed);
+    }
+  }
+  if (!speeds.length) {
+    state.speedDomain = null;
+    return;
+  }
+  state.speedDomain = {min: Math.min(...speeds), max: Math.max(...speeds)};
+}
+
+function redrawAllRoutes() {
+  for (const route of state.routes) {
+    if (!route) continue;
+    route.layerGroup?.remove();
+    route.marker?.remove();
+    route.layerGroup = L.layerGroup().addTo(map);
+    route.marker = null;
+    drawRoute(route);
+  }
 }
 
 function segmentsIntersect(p1, q1, p2, q2) {
