@@ -13,7 +13,8 @@ const ui = {
   speedGroup: document.getElementById('speedGroup'),
   speedRadios: [...document.querySelectorAll('input[name="speed"]')],
   timeline: document.getElementById('timeline'),
-  timeLabel: document.getElementById('timeLabel'),
+  timelineTitle: document.getElementById('timelineTitle'),
+  statsRow: document.getElementById('statsRow'),
   fileNameA: document.getElementById('fileNameA'),
   fileNameB: document.getElementById('fileNameB'),
   errorMessage: document.getElementById('errorMessage')
@@ -74,6 +75,8 @@ function clearAll() {
   ui.timeline.value = 0;
   ui.timeline.max = 0;
   ui.timeline.disabled = true;
+  ui.timelineTitle.textContent = 'Timeline · 00:00';
+  ui.statsRow.innerHTML = '';
   ui.speedGroup.disabled = true;
   ui.playPauseBtn.disabled = true;
   ui.playPauseBtn.textContent = 'Play';
@@ -239,6 +242,8 @@ function attemptSyncAndPreparePlayback() {
       ui.timeline.value = '0';
       ui.timeline.max = '0';
       ui.timeline.disabled = true;
+      ui.timelineTitle.textContent = 'Timeline · 00:00';
+      ui.statsRow.innerHTML = '';
       ui.speedGroup.disabled = true;
       ui.playPauseBtn.disabled = true;
       return;
@@ -320,12 +325,63 @@ function getPlaybackSpeed() {
 }
 
 function renderAtTime(tSec) {
+  const routeStats = [];
   for (const route of state.routes) {
     if (!route?.syncTimeline) continue;
     const pos = interpolatePoint(route.syncTimeline, tSec);
     route.marker.setLatLng([pos.lat, pos.lon]);
+    routeStats.push({route, stats: computeStatsAtTime(route.syncTimeline, tSec)});
   }
-  ui.timeLabel.textContent = formatTime(tSec);
+  ui.timelineTitle.textContent = `Timeline · ${formatTime(tSec)}`;
+  renderStats(routeStats);
+}
+
+function computeStatsAtTime(timeline, tSec) {
+  if (!timeline?.length) return {distanceM: 0, speedMps: 0, avgMps: 0};
+  const clamped = Math.max(0, Math.min(tSec, timeline.at(-1).tSec));
+  if (clamped <= 0) return {distanceM: 0, speedMps: 0, avgMps: 0};
+
+  let distanceM = 0;
+  let speedMps = 0;
+
+  for (let i = 1; i < timeline.length; i += 1) {
+    const prev = timeline[i - 1];
+    const curr = timeline[i];
+    const segDt = curr.tSec - prev.tSec;
+    if (segDt <= 0) continue;
+    const segDist = haversineM(prev.point, curr.point);
+
+    if (clamped >= curr.tSec) {
+      distanceM += segDist;
+      speedMps = segDist / segDt;
+      continue;
+    }
+
+    if (clamped > prev.tSec) {
+      const ratio = (clamped - prev.tSec) / segDt;
+      distanceM += segDist * ratio;
+      speedMps = segDist / segDt;
+    }
+    break;
+  }
+
+  return {distanceM, speedMps, avgMps: distanceM / clamped};
+}
+
+function renderStats(routeStats) {
+  if (!routeStats.length) {
+    ui.statsRow.innerHTML = '';
+    return;
+  }
+
+  ui.statsRow.innerHTML = routeStats
+    .map(({route, stats}) => {
+      const speed = `${(stats.speedMps * 3.6).toFixed(1)}km/h`;
+      const avg = `${(stats.avgMps * 3.6).toFixed(1)}km/h`;
+      const dist = stats.distanceM >= 1000 ? `${(stats.distanceM / 1000).toFixed(2)}km` : `${Math.round(stats.distanceM)}m`;
+      return `<span class="route-stats"><span class="route-dot ${route.id === 0 ? 'route-a' : 'route-b'}"></span>S:${speed} Avg:${avg} D:${dist}</span>`;
+    })
+    .join('');
 }
 
 function interpolatePoint(timeline, tSec) {
