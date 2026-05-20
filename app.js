@@ -21,8 +21,13 @@ const ui = {
   fileTriggers: [...document.querySelectorAll('.file-trigger')]
 };
 
+const routeStyles = [
+  {name: 'Route A', color: '#2563eb'},
+  {name: 'Route B', color: '#a21caf'}
+];
+
 const state = {
-  routes: [],
+  routes: routeStylesTemplate(),
   startLine: null,
   drawMode: false,
   drawPoints: [],
@@ -34,13 +39,8 @@ const state = {
   speedBuckets: null
 };
 
-const routeStyles = [
-  {name: 'Route A', color: '#2563eb'},
-  {name: 'Route B', color: '#a21caf'}
-];
-
-ui.fileA.addEventListener('change', () => handleFileLoad(0, ui.fileA.files?.[0]));
-ui.fileB.addEventListener('change', () => handleFileLoad(1, ui.fileB.files?.[0]));
+ui.fileA.addEventListener('change', () => handleFileLoad(0, [...(ui.fileA.files ?? [])]));
+ui.fileB.addEventListener('change', () => handleFileLoad(1, [...(ui.fileB.files ?? [])]));
 ui.fileTriggers.forEach((trigger) => {
   trigger.addEventListener('click', () => {
     const target = document.getElementById(trigger.dataset.target);
@@ -56,14 +56,20 @@ ui.timeline.addEventListener('input', () => {
 });
 map.on('click', onMapClick);
 
+function routeStylesTemplate() {
+  return routeStyles.map((style, idx) => ({id: idx, ...style, samples: []}));
+}
+
 function clearAll() {
   clearError();
   stopPlayback();
-  state.routes.forEach((route) => {
-    route.layerGroup?.remove();
-    route.marker?.remove();
-  });
-  state.routes = [];
+  for (const route of state.routes) {
+    for (const sample of route.samples) {
+      sample.layerGroup?.remove();
+      sample.marker?.remove();
+    }
+  }
+  state.routes = routeStylesTemplate();
 
   if (state.startLine) {
     state.startLine.remove();
@@ -77,8 +83,8 @@ function clearAll() {
   state.speedBuckets = null;
   ui.fileA.value = '';
   ui.fileB.value = '';
-  ui.fileNameA.textContent = 'No file selected';
-  ui.fileNameB.textContent = 'No file selected';
+  ui.fileNameA.textContent = 'No files selected';
+  ui.fileNameB.textContent = 'No files selected';
   ui.timeline.value = 0;
   ui.timeline.max = 0;
   ui.timeline.disabled = true;
@@ -90,169 +96,107 @@ function clearAll() {
   ui.drawLineBtn.textContent = 'Set starting line';
 }
 
-async function handleFileLoad(routeIdx, file) {
-  if (!file) return;
+async function handleFileLoad(routeIdx, files) {
+  if (!files.length) return;
   clearError();
+  const route = state.routes[routeIdx];
+
   try {
-    const text = await file.text();
-    const points = parseGpx(text);
-    if (points.length < 2) throw new Error('GPX needs at least two points.');
-
-    const style = routeStyles[routeIdx] || {name: `Route ${routeIdx + 1}`, color: '#111827'};
-
-    if (state.routes[routeIdx]) {
-      state.routes[routeIdx].layerGroup?.remove();
-      state.routes[routeIdx].marker?.remove();
+    const nextSamples = [];
+    for (const [sampleIdx, file] of files.entries()) {
+      const text = await file.text();
+      const points = parseGpx(text);
+      if (points.length < 2) throw new Error(`${file.name} has fewer than two points.`);
+      nextSamples.push({
+        id: `${routeIdx}-${sampleIdx}`,
+        fileName: file.name,
+        points,
+        layerGroup: null,
+        marker: null,
+        syncStartIdx: null,
+        syncTimeline: null
+      });
     }
 
-    const route = {
-      id: routeIdx,
-      ...style,
-      points,
-      layerGroup: L.layerGroup().addTo(map),
-      marker: null,
-      syncStartIdx: null,
-      syncTimeline: null
-    };
-    state.routes[routeIdx] = route;
-    updateFileName(routeIdx, file.name);
+    for (const sample of route.samples) {
+      sample.layerGroup?.remove();
+      sample.marker?.remove();
+    }
+    route.samples = nextSamples.map((sample) => ({
+      ...sample,
+      layerGroup: L.layerGroup().addTo(map)
+    }));
+
+    updateFileName(routeIdx, route.samples.map((sample) => sample.fileName));
     ui[routeIdx === 0 ? 'fileA' : 'fileB'].value = '';
     recalculateSpeedDomain();
     redrawAllRoutes();
     fitRoutes();
     attemptSyncAndPreparePlayback();
   } catch (err) {
-    showError(`Could not load ${file.name}: ${err.message}`);
+    showError(`Could not load files for ${route.name}: ${err.message}`);
   }
 }
 
-function showError(message) {
-  ui.errorMessage.textContent = message;
-  ui.errorMessage.hidden = false;
+function showError(message) { ui.errorMessage.textContent = message; ui.errorMessage.hidden = false; }
+function clearError() { ui.errorMessage.textContent = ''; ui.errorMessage.hidden = true; }
+function updateFileName(routeIdx, names) {
+  const txt = !names.length ? 'No files selected' : `${names.length} file(s): ${names.join(', ')}`;
+  if (routeIdx === 0) ui.fileNameA.textContent = txt;
+  if (routeIdx === 1) ui.fileNameB.textContent = txt;
 }
 
-function clearError() {
-  ui.errorMessage.textContent = '';
-  ui.errorMessage.hidden = true;
-}
-function updateFileName(routeIdx, name) {
-  if (routeIdx === 0) ui.fileNameA.textContent = name;
-  if (routeIdx === 1) ui.fileNameB.textContent = name;
-}
-
-function parseGpx(xmlText) {
+function parseGpx(xmlText) { /* unchanged */
   const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
   const parserError = xml.querySelector('parsererror');
   if (parserError) throw new Error('Invalid XML/GPX.');
-
-  const trkpts = [...xml.querySelectorAll('trkpt')];
-  return trkpts
-    .map((pt) => {
-      const lat = Number(pt.getAttribute('lat'));
-      const lon = Number(pt.getAttribute('lon'));
-      const ele = Number(pt.querySelector('ele')?.textContent ?? 0);
-      const timeText = pt.querySelector('time')?.textContent;
-      const time = timeText ? new Date(timeText).getTime() : NaN;
-      return {lat, lon, ele, time};
-    })
-    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+  return [...xml.querySelectorAll('trkpt')].map((pt) => ({
+    lat: Number(pt.getAttribute('lat')),
+    lon: Number(pt.getAttribute('lon')),
+    ele: Number(pt.querySelector('ele')?.textContent ?? 0),
+    time: pt.querySelector('time')?.textContent ? new Date(pt.querySelector('time').textContent).getTime() : NaN
+  })).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
 }
 
-function drawRoute(route) {
-  const latLngs = route.points.map((p) => [p.lat, p.lon]);
-  L.polyline(latLngs, {color: route.color, weight: 3, opacity: 0.45}).addTo(route.layerGroup);
-  drawSpeedSegments(route);
-  route.marker = L.circleMarker(latLngs[0], {
-    radius: 6,
-    color: '#111827',
-    fillColor: route.color,
-    fillOpacity: 1,
-    weight: 2
-  }).addTo(map);
+function drawRouteSample(route, sample) {
+  const latLngs = sample.points.map((p) => [p.lat, p.lon]);
+  L.polyline(latLngs, {color: route.color, weight: 3, opacity: 0.3}).addTo(sample.layerGroup);
+  drawSpeedSegments(sample);
+  sample.marker = L.circleMarker(latLngs[0], {radius: 5, color: '#111827', fillColor: route.color, fillOpacity: 1, weight: 1}).addTo(map);
 }
 
-function drawSpeedSegments(route) {
+function drawSpeedSegments(sample) {
   if (!state.speedBuckets) return;
   const {lowMax, midMax} = state.speedBuckets;
-  const speeds = [];
-  for (let i = 1; i < route.points.length; i += 1) {
-    const p0 = route.points[i - 1];
-    const p1 = route.points[i];
-    const distM = haversineM(p0, p1);
+  for (let i = 1; i < sample.points.length; i += 1) {
+    const p0 = sample.points[i - 1];
+    const p1 = sample.points[i];
     const dtSec = Number.isFinite(p1.time) && Number.isFinite(p0.time) ? (p1.time - p0.time) / 1000 : NaN;
-    const speed = dtSec > 0 ? distM / dtSec : NaN;
-    speeds.push(speed);
-  }
-
-  for (let i = 1; i < route.points.length; i += 1) {
-    const speed = speeds[i - 1];
+    const speed = dtSec > 0 ? haversineM(p0, p1) / dtSec : NaN;
     if (!Number.isFinite(speed)) continue;
-    const color = speed <= lowMax ? "#dc2626" : speed <= midMax ? "#eab308" : "#16a34a";
-    L.polyline(
-      [
-        [route.points[i - 1].lat, route.points[i - 1].lon],
-        [route.points[i].lat, route.points[i].lon]
-      ],
-      {color, weight: 5, opacity: 0.85}
-    ).addTo(route.layerGroup);
+    const color = speed <= lowMax ? '#dc2626' : speed <= midMax ? '#eab308' : '#16a34a';
+    L.polyline([[p0.lat, p0.lon], [p1.lat, p1.lon]], {color, weight: 5, opacity: 0.85}).addTo(sample.layerGroup);
   }
 }
 
-
-function toggleDrawMode() {
-  state.drawMode = !state.drawMode;
-  state.drawPoints = [];
-  ui.drawLineBtn.textContent = state.drawMode ? 'Click 2 points on map…' : 'Set starting line';
-}
-
-function onMapClick(e) {
-  if (!state.drawMode) return;
-  state.drawPoints.push(e.latlng);
-  if (state.drawPoints.length < 2) return;
-
-  if (state.startLine) state.startLine.remove();
-  state.startLine = L.polyline(state.drawPoints.map((p) => [p.lat, p.lng]), {
-    color: '#111827',
-    dashArray: '8,6',
-    weight: 4
-  }).addTo(map);
-
-  state.drawMode = false;
-  state.drawPoints = [];
-  ui.drawLineBtn.textContent = 'Set starting line';
-  attemptSyncAndPreparePlayback();
-}
+function toggleDrawMode() { state.drawMode = !state.drawMode; state.drawPoints = []; ui.drawLineBtn.textContent = state.drawMode ? 'Click 2 points on map…' : 'Set starting line'; }
+function onMapClick(e) { if (!state.drawMode) return; state.drawPoints.push(e.latlng); if (state.drawPoints.length < 2) return; if (state.startLine) state.startLine.remove(); state.startLine = L.polyline(state.drawPoints.map((p) => [p.lat, p.lng]), {color: '#111827', dashArray: '8,6', weight: 4}).addTo(map); state.drawMode = false; state.drawPoints = []; ui.drawLineBtn.textContent = 'Set starting line'; attemptSyncAndPreparePlayback(); }
 
 function attemptSyncAndPreparePlayback() {
   if (!state.startLine) return;
-  const requiredRoutes = [state.routes[0], state.routes[1]];
-  if (requiredRoutes.some((route) => !route)) return;
-
+  if (state.routes.some((route) => route.samples.length === 0)) return;
   const [l0, l1] = state.startLine.getLatLngs();
-  for (const route of requiredRoutes) {
-    route.syncStartIdx = findCrossingIndex(route.points, l0, l1);
-    if (route.syncStartIdx === -1) {
-      stopPlayback();
-      for (const resetRoute of requiredRoutes) {
-        if (!resetRoute) continue;
-        resetRoute.syncStartIdx = null;
-        resetRoute.syncTimeline = null;
+  for (const route of state.routes) {
+    for (const sample of route.samples) {
+      sample.syncStartIdx = findCrossingIndex(sample.points, l0, l1);
+      if (sample.syncStartIdx === -1) {
+        resetPlaybackState();
+        return;
       }
-      state.currentSec = 0;
-      state.maxSec = 0;
-      ui.timeline.value = '0';
-      ui.timeline.max = '0';
-      ui.timeline.disabled = true;
-      ui.timelineTitle.textContent = 'Timeline · 00:00';
-      ui.statsRow.innerHTML = '';
-      ui.speedGroup.disabled = true;
-      ui.playPauseBtn.disabled = true;
-      return;
+      sample.syncTimeline = buildSyncedTimeline(sample.points, sample.syncStartIdx);
     }
-    route.syncTimeline = buildSyncedTimeline(route.points, route.syncStartIdx);
   }
-
-  state.maxSec = Math.ceil(Math.max(...requiredRoutes.map((r) => r.syncTimeline.at(-1).tSec)));
+  state.maxSec = Math.ceil(Math.max(...state.routes.flatMap((route) => route.samples.map((sample) => sample.syncTimeline.at(-1).tSec))));
   state.currentSec = 0;
   ui.timeline.max = String(state.maxSec);
   ui.timeline.value = '0';
@@ -262,220 +206,53 @@ function attemptSyncAndPreparePlayback() {
   renderAtTime(0);
 }
 
-function findCrossingIndex(points, a, b) {
-  for (let i = 1; i < points.length; i += 1) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    if (segmentsIntersect(prev, curr, a, b)) return i;
-  }
-  return -1;
+function resetPlaybackState() {
+  stopPlayback();
+  state.currentSec = 0;
+  state.maxSec = 0;
+  ui.timeline.value = '0'; ui.timeline.max = '0'; ui.timeline.disabled = true;
+  ui.timelineTitle.textContent = 'Timeline · 00:00';
+  ui.statsRow.innerHTML = '';
+  ui.speedGroup.disabled = true;
+  ui.playPauseBtn.disabled = true;
 }
 
-function buildSyncedTimeline(points, startIdx) {
-  const timeline = [{tSec: 0, point: points[startIdx]}];
-  let elapsed = 0;
-  for (let i = startIdx + 1; i < points.length; i += 1) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    const dtSec = Number.isFinite(prev.time) && Number.isFinite(curr.time) && curr.time > prev.time
-      ? (curr.time - prev.time) / 1000
-      : haversineM(prev, curr) / 4;
-    elapsed += dtSec;
-    timeline.push({tSec: elapsed, point: curr});
-  }
-  return timeline;
-}
-
-function togglePlayback() {
-  if (!state.isPlaying) {
-    state.isPlaying = true;
-    ui.playPauseBtn.textContent = 'Pause';
-    state.lastFrameTs = null;
-    state.rafId = requestAnimationFrame(tick);
-  } else {
-    stopPlayback();
-  }
-}
-
-function stopPlayback() {
-  state.isPlaying = false;
-  ui.playPauseBtn.textContent = 'Play';
-  if (state.rafId) cancelAnimationFrame(state.rafId);
-  state.rafId = null;
-  state.lastFrameTs = null;
-}
-
-function tick(ts) {
-  if (!state.isPlaying) return;
-  if (!state.lastFrameTs) state.lastFrameTs = ts;
-  const dt = (ts - state.lastFrameTs) / 1000;
-  state.lastFrameTs = ts;
-  state.currentSec += dt * getPlaybackSpeed();
-
-  if (state.currentSec >= state.maxSec) {
-    state.currentSec = state.maxSec;
-    stopPlayback();
-  }
-
-  ui.timeline.value = String(Math.floor(state.currentSec));
-  renderAtTime(state.currentSec);
-  state.rafId = requestAnimationFrame(tick);
-}
-function getPlaybackSpeed() {
-  return Number(ui.speedRadios.find((radio) => radio.checked)?.value ?? 1);
-}
+const findCrossingIndex = (points, a, b) => { for (let i = 1; i < points.length; i += 1) if (segmentsIntersect(points[i - 1], points[i], a, b)) return i; return -1; };
+function buildSyncedTimeline(points, startIdx) { const timeline = [{tSec: 0, point: points[startIdx]}]; let elapsed = 0; for (let i = startIdx + 1; i < points.length; i += 1) { const prev = points[i - 1]; const curr = points[i]; const dtSec = Number.isFinite(prev.time) && Number.isFinite(curr.time) && curr.time > prev.time ? (curr.time - prev.time) / 1000 : haversineM(prev, curr) / 4; elapsed += dtSec; timeline.push({tSec: elapsed, point: curr}); } return timeline; }
+function togglePlayback() { if (!state.isPlaying) { state.isPlaying = true; ui.playPauseBtn.textContent = 'Pause'; state.lastFrameTs = null; state.rafId = requestAnimationFrame(tick); } else stopPlayback(); }
+function stopPlayback() { state.isPlaying = false; ui.playPauseBtn.textContent = 'Play'; if (state.rafId) cancelAnimationFrame(state.rafId); state.rafId = null; state.lastFrameTs = null; }
+function tick(ts) { if (!state.isPlaying) return; if (!state.lastFrameTs) state.lastFrameTs = ts; const dt = (ts - state.lastFrameTs) / 1000; state.lastFrameTs = ts; state.currentSec += dt * getPlaybackSpeed(); if (state.currentSec >= state.maxSec) { state.currentSec = state.maxSec; stopPlayback(); } ui.timeline.value = String(Math.floor(state.currentSec)); renderAtTime(state.currentSec); state.rafId = requestAnimationFrame(tick); }
+const getPlaybackSpeed = () => Number(ui.speedRadios.find((radio) => radio.checked)?.value ?? 1);
 
 function renderAtTime(tSec) {
   const routeStats = [];
   for (const route of state.routes) {
-    if (!route?.syncTimeline) continue;
-    const pos = interpolatePoint(route.syncTimeline, tSec);
-    route.marker.setLatLng([pos.lat, pos.lon]);
-    routeStats.push({route, stats: computeStatsAtTime(route.syncTimeline, tSec)});
+    const sampleStats = [];
+    for (const sample of route.samples) {
+      if (!sample.syncTimeline) continue;
+      const pos = interpolatePoint(sample.syncTimeline, tSec);
+      sample.marker?.setLatLng([pos.lat, pos.lon]);
+      sampleStats.push(computeStatsAtTime(sample.syncTimeline, tSec));
+    }
+    if (!sampleStats.length) continue;
+    const avg = sampleStats.reduce((acc, cur) => ({
+      speedMps: acc.speedMps + cur.speedMps,
+      avgMps: acc.avgMps + cur.avgMps,
+      distanceM: acc.distanceM + cur.distanceM
+    }), {speedMps: 0, avgMps: 0, distanceM: 0});
+    routeStats.push({route, stats: {speedMps: avg.speedMps / sampleStats.length, avgMps: avg.avgMps / sampleStats.length, distanceM: avg.distanceM / sampleStats.length}, sampleCount: sampleStats.length});
   }
   ui.timelineTitle.textContent = `Timeline · ${formatTime(tSec)}`;
   renderStats(routeStats);
 }
 
-function computeStatsAtTime(timeline, tSec) {
-  if (!timeline?.length) return {distanceM: 0, speedMps: 0, avgMps: 0};
-  const clamped = Math.max(0, Math.min(tSec, timeline.at(-1).tSec));
-  if (clamped <= 0) return {distanceM: 0, speedMps: 0, avgMps: 0};
-
-  let distanceM = 0;
-  let speedMps = 0;
-
-  for (let i = 1; i < timeline.length; i += 1) {
-    const prev = timeline[i - 1];
-    const curr = timeline[i];
-    const segDt = curr.tSec - prev.tSec;
-    if (segDt <= 0) continue;
-    const segDist = haversineM(prev.point, curr.point);
-
-    if (clamped >= curr.tSec) {
-      distanceM += segDist;
-      speedMps = segDist / segDt;
-      continue;
-    }
-
-    if (clamped > prev.tSec) {
-      const ratio = (clamped - prev.tSec) / segDt;
-      distanceM += segDist * ratio;
-      speedMps = segDist / segDt;
-    }
-    break;
-  }
-
-  return {distanceM, speedMps, avgMps: distanceM / clamped};
-}
-
-function renderStats(routeStats) {
-  if (!routeStats.length) {
-    ui.statsRow.innerHTML = '';
-    return;
-  }
-
-  ui.statsRow.innerHTML = routeStats
-    .map(({route, stats}) => {
-      const speed = `${(stats.speedMps * 3.6).toFixed(1)} km/h`;
-      const avg = `${(stats.avgMps * 3.6).toFixed(1)} km/h`;
-      const dist = stats.distanceM >= 1000 ? `${(stats.distanceM / 1000).toFixed(2)} km` : `${Math.round(stats.distanceM)} m`;
-      return `<span class="route-stats"><span class="route-dot ${route.id === 0 ? 'route-a' : 'route-b'}"></span>Spd: ${speed} Avg: ${avg} Dst: ${dist}</span>`;
-    })
-    .join('');
-}
-
-function interpolatePoint(timeline, tSec) {
-  if (tSec <= 0) return timeline[0].point;
-  if (tSec >= timeline.at(-1).tSec) return timeline.at(-1).point;
-
-  let i = 1;
-  while (i < timeline.length && timeline[i].tSec < tSec) i += 1;
-  const p0 = timeline[i - 1];
-  const p1 = timeline[i];
-  const span = p1.tSec - p0.tSec || 1;
-  const ratio = (tSec - p0.tSec) / span;
-
-  return {
-    lat: p0.point.lat + (p1.point.lat - p0.point.lat) * ratio,
-    lon: p0.point.lon + (p1.point.lon - p0.point.lon) * ratio
-  };
-}
-
-function formatTime(sec) {
-  const s = Math.max(0, Math.floor(sec));
-  const mm = String(Math.floor(s / 60)).padStart(2, '0');
-  const ss = String(s % 60).padStart(2, '0');
-  return `${mm}:${ss}`;
-}
-
-function fitRoutes() {
-  const bounds = [];
-  for (const route of state.routes) {
-    if (!route) continue;
-    route.points.forEach((p) => bounds.push([p.lat, p.lon]));
-  }
-  if (bounds.length) map.fitBounds(bounds, {padding: [30, 30]});
-}
-function recalculateSpeedDomain() {
-  const speeds = [];
-  for (const route of state.routes) {
-    if (!route) continue;
-    for (let i = 1; i < route.points.length; i += 1) {
-      const p0 = route.points[i - 1];
-      const p1 = route.points[i];
-      const dtSec = Number.isFinite(p1.time) && Number.isFinite(p0.time) ? (p1.time - p0.time) / 1000 : NaN;
-      const speed = dtSec > 0 ? haversineM(p0, p1) / dtSec : NaN;
-      if (Number.isFinite(speed)) speeds.push(speed);
-    }
-  }
-  if (!speeds.length) {
-    state.speedBuckets = null;
-    return;
-  }
-  speeds.sort((a, b) => a - b);
-  const q = (f) => {
-    const idx = Math.min(speeds.length - 1, Math.max(0, Math.floor((speeds.length - 1) * f)));
-    return speeds[idx];
-  };
-  state.speedBuckets = {
-    lowMax: q(1 / 3),
-    midMax: q(2 / 3)
-  };
-}
-
-function redrawAllRoutes() {
-  for (const route of state.routes) {
-    if (!route) continue;
-    route.layerGroup?.remove();
-    route.marker?.remove();
-    route.layerGroup = L.layerGroup().addTo(map);
-    route.marker = null;
-    drawRoute(route);
-  }
-}
-
-function segmentsIntersect(p1, q1, p2, q2) {
-  const o1 = orientation(p1, q1, p2);
-  const o2 = orientation(p1, q1, q2);
-  const o3 = orientation(p2, q2, p1);
-  const o4 = orientation(p2, q2, q1);
-  return o1 !== o2 && o3 !== o4;
-}
-
-function orientation(p, q, r) {
-  const val = (q.lon ?? q.lng) - (p.lon ?? p.lng);
-  const cross = val * ((r.lat ?? r[0]) - (q.lat ?? q[0])) - ((q.lat ?? q[0]) - (p.lat ?? p[0])) * ((r.lon ?? r.lng ?? r[1]) - (q.lon ?? q.lng));
-  return cross > 0;
-}
-
-function haversineM(a, b) {
-  const R = 6371000;
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(x));
-}
+function computeStatsAtTime(timeline, tSec) { if (!timeline?.length) return {distanceM: 0, speedMps: 0, avgMps: 0}; const clamped = Math.max(0, Math.min(tSec, timeline.at(-1).tSec)); if (clamped <= 0) return {distanceM: 0, speedMps: 0, avgMps: 0}; let distanceM = 0; let speedMps = 0; for (let i = 1; i < timeline.length; i += 1) { const prev = timeline[i - 1]; const curr = timeline[i]; const segDt = curr.tSec - prev.tSec; if (segDt <= 0) continue; const segDist = haversineM(prev.point, curr.point); if (clamped >= curr.tSec) { distanceM += segDist; speedMps = segDist / segDt; continue; } if (clamped > prev.tSec) { const ratio = (clamped - prev.tSec) / segDt; distanceM += segDist * ratio; speedMps = segDist / segDt; } break; } return {distanceM, speedMps, avgMps: distanceM / clamped}; }
+function renderStats(routeStats) { if (!routeStats.length) return (ui.statsRow.innerHTML = ''); ui.statsRow.innerHTML = routeStats.map(({route, stats, sampleCount}) => { const speed = `${(stats.speedMps * 3.6).toFixed(1)} km/h`; const avg = `${(stats.avgMps * 3.6).toFixed(1)} km/h`; const dist = stats.distanceM >= 1000 ? `${(stats.distanceM / 1000).toFixed(2)} km` : `${Math.round(stats.distanceM)} m`; return `<span class="route-stats"><span class="route-dot ${route.id === 0 ? 'route-a' : 'route-b'}"></span>${route.name} (${sampleCount}): Spd: ${speed} Avg: ${avg} Dst: ${dist}</span>`; }).join(''); }
+function interpolatePoint(timeline, tSec) { if (tSec <= 0) return timeline[0].point; if (tSec >= timeline.at(-1).tSec) return timeline.at(-1).point; let i = 1; while (i < timeline.length && timeline[i].tSec < tSec) i += 1; const p0 = timeline[i - 1]; const p1 = timeline[i]; const span = p1.tSec - p0.tSec || 1; const ratio = (tSec - p0.tSec) / span; return {lat: p0.point.lat + (p1.point.lat - p0.point.lat) * ratio, lon: p0.point.lon + (p1.point.lon - p0.point.lon) * ratio}; }
+const formatTime = (sec) => `${String(Math.floor(Math.max(0, sec) / 60)).padStart(2, '0')}:${String(Math.max(0, Math.floor(sec)) % 60).padStart(2, '0')}`;
+function fitRoutes() { const bounds = []; for (const route of state.routes) for (const sample of route.samples) sample.points.forEach((p) => bounds.push([p.lat, p.lon])); if (bounds.length) map.fitBounds(bounds, {padding: [30, 30]}); }
+function recalculateSpeedDomain() { const speeds = []; for (const route of state.routes) for (const sample of route.samples) for (let i = 1; i < sample.points.length; i += 1) { const p0 = sample.points[i - 1]; const p1 = sample.points[i]; const dtSec = Number.isFinite(p1.time) && Number.isFinite(p0.time) ? (p1.time - p0.time) / 1000 : NaN; const speed = dtSec > 0 ? haversineM(p0, p1) / dtSec : NaN; if (Number.isFinite(speed)) speeds.push(speed); } if (!speeds.length) return (state.speedBuckets = null); speeds.sort((a, b) => a - b); const q = (f) => speeds[Math.min(speeds.length - 1, Math.max(0, Math.floor((speeds.length - 1) * f)))]; state.speedBuckets = {lowMax: q(1 / 3), midMax: q(2 / 3)}; }
+function redrawAllRoutes() { for (const route of state.routes) for (const sample of route.samples) { sample.layerGroup?.remove(); sample.marker?.remove(); sample.layerGroup = L.layerGroup().addTo(map); sample.marker = null; drawRouteSample(route, sample); } }
+function segmentsIntersect(p1, q1, p2, q2) { const o1 = orientation(p1, q1, p2); const o2 = orientation(p1, q1, q2); const o3 = orientation(p2, q2, p1); const o4 = orientation(p2, q2, q1); return o1 !== o2 && o3 !== o4; }
+function orientation(p, q, r) { const val = (q.lon ?? q.lng) - (p.lon ?? p.lng); const cross = val * ((r.lat ?? r[0]) - (q.lat ?? q[0])) - ((q.lat ?? q[0]) - (p.lat ?? p[0])) * ((r.lon ?? r.lng ?? r[1]) - (q.lon ?? q.lng)); return cross > 0; }
+function haversineM(a, b) { const R = 6371000; const toRad = (deg) => (deg * Math.PI) / 180; const dLat = toRad(b.lat - a.lat); const dLon = toRad(b.lon - a.lon); const lat1 = toRad(a.lat); const lat2 = toRad(b.lat); const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); }
