@@ -228,3 +228,29 @@ input:disabled {
   padding: 0.42rem 0.7rem;
   font-weight: 600;
 }
+
+
+.map-panel {
+  position: relative;
+}
+
+.map-footer {
+  height: 0;
+  position: relative;
+}
+
+.source-link {
+  position: absolute;
+  right: 0.7rem;
+  top: 0.25rem;
+  font-size: 0.72rem;
+  color: #6f8a7f;
+  text-decoration: none;
+  opacity: 0.85;
+}
+
+.source-link:hover,
+.source-link:focus-visible {
+  text-decoration: underline;
+  opacity: 1;
+}
