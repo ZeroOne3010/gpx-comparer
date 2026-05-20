@@ -1,4 +1,5 @@
-const map = L.map('map').setView([37.7749, -122.4194], 12);
+const defaultMapCenter = [37.7749, -122.4194];
+const map = L.map('map').setView(defaultMapCenter, 12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; OpenStreetMap contributors'
@@ -55,7 +56,20 @@ ui.timeline.addEventListener('input', () => {
   renderAtTime(state.currentSec);
 });
 map.on('click', onMapClick);
+initializeMapCenterFromUserLocation();
 
+
+function initializeMapCenterFromUserLocation() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    ({coords}) => {
+      if (!Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude)) return;
+      map.setView([coords.latitude, coords.longitude], 12);
+    },
+    () => {},
+    {enableHighAccuracy: false, maximumAge: 15 * 60 * 1000, timeout: 5000}
+  );
+}
 function routeStylesTemplate() {
   return routeStyles.map((style, idx) => ({id: idx, ...style, samples: []}));
 }
@@ -179,8 +193,8 @@ function drawSpeedSegments(sample) {
   }
 }
 
-function toggleDrawMode() { state.drawMode = !state.drawMode; state.drawPoints = []; ui.drawLineBtn.textContent = state.drawMode ? 'Click 2 points on map…' : 'Set starting line'; }
-function onMapClick(e) { if (!state.drawMode) return; state.drawPoints.push(e.latlng); if (state.drawPoints.length < 2) return; if (state.startLine) state.startLine.remove(); state.startLine = L.polyline(state.drawPoints.map((p) => [p.lat, p.lng]), {color: '#111827', dashArray: '8,6', weight: 4}).addTo(map); state.drawMode = false; state.drawPoints = []; ui.drawLineBtn.textContent = 'Set starting line'; attemptSyncAndPreparePlayback(); }
+function toggleDrawMode() { state.drawMode = !state.drawMode; state.drawPoints = []; if (state.drawMode) stopPlayback(); ui.drawLineBtn.textContent = state.drawMode ? 'Click 2 points on map…' : 'Set starting line'; }
+function onMapClick(e) { if (!state.drawMode) return; state.drawPoints.push(e.latlng); if (state.drawPoints.length < 2) return; stopPlayback(); if (state.startLine) state.startLine.remove(); state.startLine = L.polyline(state.drawPoints.map((p) => [p.lat, p.lng]), {color: '#111827', dashArray: '8,6', weight: 4}).addTo(map); state.drawMode = false; state.drawPoints = []; ui.drawLineBtn.textContent = 'Set starting line'; attemptSyncAndPreparePlayback(); }
 
 function attemptSyncAndPreparePlayback() {
   if (!state.startLine) return;
