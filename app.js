@@ -37,7 +37,8 @@ const state = {
   maxSec: 0,
   rafId: null,
   lastFrameTs: null,
-  speedBuckets: null
+  speedBuckets: null,
+  hasUserInteractedMap: false
 };
 
 ui.fileA.addEventListener('change', () => handleFileLoad(0, [...(ui.fileA.files ?? [])]));
@@ -56,14 +57,27 @@ ui.timeline.addEventListener('input', () => {
   renderAtTime(state.currentSec);
 });
 map.on('click', onMapClick);
+registerMapInteractionTracking();
 initializeMapCenterFromUserLocation();
 
 
+
+function registerMapInteractionTracking() {
+  const mapContainer = map.getContainer();
+  const markInteracted = () => { state.hasUserInteractedMap = true; };
+  mapContainer.addEventListener('pointerdown', markInteracted, {passive: true});
+  mapContainer.addEventListener('wheel', markInteracted, {passive: true});
+}
+
+function hasLoadedSamples() {
+  return state.routes.some((route) => route.samples.length > 0);
+}
 function initializeMapCenterFromUserLocation() {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(
     ({coords}) => {
       if (!Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude)) return;
+      if (hasLoadedSamples() || state.hasUserInteractedMap) return;
       map.setView([coords.latitude, coords.longitude], 12);
     },
     () => {},
