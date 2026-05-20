@@ -17,7 +17,8 @@ const ui = {
   statsRow: document.getElementById('statsRow'),
   fileNameA: document.getElementById('fileNameA'),
   fileNameB: document.getElementById('fileNameB'),
-  errorMessage: document.getElementById('errorMessage')
+  errorMessage: document.getElementById('errorMessage'),
+  fileTriggers: [...document.querySelectorAll('.file-trigger')]
 };
 
 const state = {
@@ -30,7 +31,7 @@ const state = {
   maxSec: 0,
   rafId: null,
   lastFrameTs: null,
-  speedDomain: null
+  speedBuckets: null
 };
 
 const routeStyles = [
@@ -40,6 +41,12 @@ const routeStyles = [
 
 ui.fileA.addEventListener('change', () => handleFileLoad(0, ui.fileA.files?.[0]));
 ui.fileB.addEventListener('change', () => handleFileLoad(1, ui.fileB.files?.[0]));
+ui.fileTriggers.forEach((trigger) => {
+  trigger.addEventListener('click', () => {
+    const target = document.getElementById(trigger.dataset.target);
+    target?.click();
+  });
+});
 ui.drawLineBtn.addEventListener('click', toggleDrawMode);
 ui.clearBtn.addEventListener('click', clearAll);
 ui.playPauseBtn.addEventListener('click', togglePlayback);
@@ -67,7 +74,7 @@ function clearAll() {
   state.drawPoints = [];
   state.currentSec = 0;
   state.maxSec = 0;
-  state.speedDomain = null;
+  state.speedBuckets = null;
   ui.fileA.value = '';
   ui.fileB.value = '';
   ui.fileNameA.textContent = 'No file selected';
@@ -165,8 +172,8 @@ function drawRoute(route) {
 }
 
 function drawSpeedSegments(route) {
-  if (!state.speedDomain) return;
-  const {min, max} = state.speedDomain;
+  if (!state.speedBuckets) return;
+  const {lowMax, midMax} = state.speedBuckets;
   const speeds = [];
   for (let i = 1; i < route.points.length; i += 1) {
     const p0 = route.points[i - 1];
@@ -180,8 +187,7 @@ function drawSpeedSegments(route) {
   for (let i = 1; i < route.points.length; i += 1) {
     const speed = speeds[i - 1];
     if (!Number.isFinite(speed)) continue;
-    const t = max > min ? (speed - min) / (max - min) : 0.5;
-    const color = speedColor(t);
+    const color = speed <= lowMax ? "#dc2626" : speed <= midMax ? "#eab308" : "#16a34a";
     L.polyline(
       [
         [route.points[i - 1].lat, route.points[i - 1].lon],
@@ -192,11 +198,6 @@ function drawSpeedSegments(route) {
   }
 }
 
-function speedColor(t) {
-  const r = Math.round(255 * (1 - t));
-  const g = Math.round(220 * t + 30);
-  return `rgb(${r}, ${g}, 50)`;
-}
 
 function toggleDrawMode() {
   state.drawMode = !state.drawMode;
@@ -376,10 +377,10 @@ function renderStats(routeStats) {
 
   ui.statsRow.innerHTML = routeStats
     .map(({route, stats}) => {
-      const speed = `${(stats.speedMps * 3.6).toFixed(1)}km/h`;
-      const avg = `${(stats.avgMps * 3.6).toFixed(1)}km/h`;
-      const dist = stats.distanceM >= 1000 ? `${(stats.distanceM / 1000).toFixed(2)}km` : `${Math.round(stats.distanceM)}m`;
-      return `<span class="route-stats"><span class="route-dot ${route.id === 0 ? 'route-a' : 'route-b'}"></span>S:${speed} Avg:${avg} D:${dist}</span>`;
+      const speed = `${(stats.speedMps * 3.6).toFixed(1)} km/h`;
+      const avg = `${(stats.avgMps * 3.6).toFixed(1)} km/h`;
+      const dist = stats.distanceM >= 1000 ? `${(stats.distanceM / 1000).toFixed(2)} km` : `${Math.round(stats.distanceM)} m`;
+      return `<span class="route-stats"><span class="route-dot ${route.id === 0 ? 'route-a' : 'route-b'}"></span>Spd: ${speed} Avg: ${avg} Dst: ${dist}</span>`;
     })
     .join('');
 }
@@ -429,10 +430,18 @@ function recalculateSpeedDomain() {
     }
   }
   if (!speeds.length) {
-    state.speedDomain = null;
+    state.speedBuckets = null;
     return;
   }
-  state.speedDomain = {min: Math.min(...speeds), max: Math.max(...speeds)};
+  speeds.sort((a, b) => a - b);
+  const q = (f) => {
+    const idx = Math.min(speeds.length - 1, Math.max(0, Math.floor((speeds.length - 1) * f)));
+    return speeds[idx];
+  };
+  state.speedBuckets = {
+    lowMax: q(1 / 3),
+    midMax: q(2 / 3)
+  };
 }
 
 function redrawAllRoutes() {

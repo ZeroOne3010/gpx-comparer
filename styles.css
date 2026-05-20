@@ -65,13 +65,11 @@ label {
   font-weight: 600;
 }
 
-input[type='file'],
 button {
   font: inherit;
   border-radius: 8px;
 }
 
-input[type='file'],
 fieldset {
   border: 1px solid #cbe8bf;
   padding: 0.45rem;
@@ -207,4 +205,26 @@ input:disabled {
   #map {
     min-height: 60vh;
   }
+}
+
+
+.file-picker-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.file-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+.file-trigger {
+  padding: 0.42rem 0.7rem;
+  font-weight: 600;
 }

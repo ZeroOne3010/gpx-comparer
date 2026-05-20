@@ -21,16 +21,22 @@
     <main>
       <section class="panel controls">
         <div class="file-row">
-          <label>
+          <div class="file-picker-row">
             <span class="route-label"><span class="route-dot route-a"></span>Route A</span>
-            <input id="fileA" type="file" accept=".gpx,application/gpx+xml" />
-            <span id="fileNameA" class="file-name">No file selected</span>
-          </label>
-          <label>
+            <div class="file-picker">
+              <input id="fileA" class="file-input-hidden" type="file" accept=".gpx,application/gpx+xml" />
+              <button type="button" class="file-trigger" data-target="fileA">Choose file</button>
+              <span id="fileNameA" class="file-name">No file selected</span>
+            </div>
+          </div>
+          <div class="file-picker-row">
             <span class="route-label"><span class="route-dot route-b"></span>Route B</span>
-            <input id="fileB" type="file" accept=".gpx,application/gpx+xml" />
-            <span id="fileNameB" class="file-name">No file selected</span>
-          </label>
+            <div class="file-picker">
+              <input id="fileB" class="file-input-hidden" type="file" accept=".gpx,application/gpx+xml" />
+              <button type="button" class="file-trigger" data-target="fileB">Choose file</button>
+              <span id="fileNameB" class="file-name">No file selected</span>
+            </div>
+          </div>
         </div>
 
         <div class="actions">
