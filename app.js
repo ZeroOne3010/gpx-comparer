@@ -21,6 +21,11 @@ const ui = {
   fileTriggers: [...document.querySelectorAll('.file-trigger')]
 };
 
+const routeStyles = [
+  {name: 'Route A', color: '#2563eb'},
+  {name: 'Route B', color: '#a21caf'}
+];
+
 const state = {
   routes: routeStylesTemplate(),
   startLine: null,
@@ -33,11 +38,6 @@ const state = {
   lastFrameTs: null,
   speedBuckets: null
 };
-
-const routeStyles = [
-  {name: 'Route A', color: '#2563eb'},
-  {name: 'Route B', color: '#a21caf'}
-];
 
 ui.fileA.addEventListener('change', () => handleFileLoad(0, [...(ui.fileA.files ?? [])]));
 ui.fileB.addEventListener('change', () => handleFileLoad(1, [...(ui.fileB.files ?? [])]));
@@ -101,27 +101,31 @@ async function handleFileLoad(routeIdx, files) {
   clearError();
   const route = state.routes[routeIdx];
 
-  for (const sample of route.samples) {
-    sample.layerGroup?.remove();
-    sample.marker?.remove();
-  }
-  route.samples = [];
-
   try {
+    const nextSamples = [];
     for (const [sampleIdx, file] of files.entries()) {
       const text = await file.text();
       const points = parseGpx(text);
       if (points.length < 2) throw new Error(`${file.name} has fewer than two points.`);
-      route.samples.push({
+      nextSamples.push({
         id: `${routeIdx}-${sampleIdx}`,
         fileName: file.name,
         points,
-        layerGroup: L.layerGroup().addTo(map),
+        layerGroup: null,
         marker: null,
         syncStartIdx: null,
         syncTimeline: null
       });
     }
+
+    for (const sample of route.samples) {
+      sample.layerGroup?.remove();
+      sample.marker?.remove();
+    }
+    route.samples = nextSamples.map((sample) => ({
+      ...sample,
+      layerGroup: L.layerGroup().addTo(map)
+    }));
 
     updateFileName(routeIdx, route.samples.map((sample) => sample.fileName));
     ui[routeIdx === 0 ? 'fileA' : 'fileB'].value = '';
