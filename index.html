@@ -42,7 +42,6 @@
           <button id="playPauseBtn" disabled>Play</button>
           <fieldset id="speedGroup" disabled>
             <legend>Speed</legend>
-            <label><input type="radio" name="speed" value="0.5" />0.5x</label>
             <label><input type="radio" name="speed" value="1" checked />1x</label>
             <label><input type="radio" name="speed" value="2" />2x</label>
             <label><input type="radio" name="speed" value="4" />4x</label>
@@ -50,10 +49,10 @@
             <label><input type="radio" name="speed" value="16" />16x</label>
           </fieldset>
           <label class="scrub-label">
-            Timeline
+            <span id="timelineTitle">Timeline · 00:00</span>
             <input id="timeline" type="range" min="0" max="0" step="1" value="0" disabled />
           </label>
-          <span id="timeLabel">00:00</span>
+          <div id="statsRow" class="stats-row" aria-live="polite"></div>
         </div>
         <p id="errorMessage" class="error-message" role="alert" hidden></p>
 

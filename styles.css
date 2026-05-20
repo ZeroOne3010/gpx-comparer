@@ -108,6 +108,11 @@ input:disabled {
   grid-column: 1 / -1;
 }
 
+#timelineTitle {
+  display: inline-block;
+  margin-bottom: 0.2rem;
+}
+
 #timeline {
   width: 100%;
   accent-color: #45cf0f;
@@ -162,6 +167,30 @@ input:disabled {
   align-items: center;
   gap: 0.2rem;
   font-weight: 600;
+}
+
+.stats-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: #1e3a2b;
+}
+
+.route-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #d9eed1;
+  border-radius: 999px;
+  padding: 0.2rem 0.45rem;
+  background: #fbfff9;
+  white-space: nowrap;
+}
+
+.route-stats .route-dot {
+  width: 0.62rem;
+  height: 0.62rem;
 }
 
 #map {
