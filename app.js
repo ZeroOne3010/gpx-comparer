@@ -18,6 +18,8 @@ const ui = {
   statsRow: document.getElementById('statsRow'),
   fileNameA: document.getElementById('fileNameA'),
   fileNameB: document.getElementById('fileNameB'),
+  fileListA: document.getElementById('fileListA'),
+  fileListB: document.getElementById('fileListB'),
   errorMessage: document.getElementById('errorMessage'),
   fileTriggers: [...document.querySelectorAll('.file-trigger')]
 };
@@ -113,6 +115,7 @@ function clearAll() {
   ui.fileB.value = '';
   ui.fileNameA.textContent = 'No files selected';
   ui.fileNameB.textContent = 'No files selected';
+  renderFileLists();
   ui.timeline.value = 0;
   ui.timeline.max = 0;
   ui.timeline.disabled = true;
@@ -172,6 +175,78 @@ function updateFileName(routeIdx, names) {
   const txt = !names.length ? 'No files selected' : `${names.length} file(s): ${names.join(', ')}`;
   if (routeIdx === 0) ui.fileNameA.textContent = txt;
   if (routeIdx === 1) ui.fileNameB.textContent = txt;
+  renderFileLists();
+}
+
+function renderFileLists() {
+  renderFileListForRoute(0);
+  renderFileListForRoute(1);
+}
+
+function renderFileListForRoute(routeIdx) {
+  const route = state.routes[routeIdx];
+  const listEl = ui[routeIdx === 0 ? 'fileListA' : 'fileListB'];
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  route.samples.forEach((sample, sampleIdx) => {
+    const row = document.createElement('div');
+    row.className = 'file-list-row';
+
+    const name = document.createElement('span');
+    name.className = 'file-list-name';
+    name.textContent = sample.fileName;
+    name.title = sample.fileName;
+
+    const swapButton = document.createElement('button');
+    swapButton.type = 'button';
+    swapButton.className = 'swap-button';
+    swapButton.textContent = routeIdx === 0 ? '→' : '←';
+    swapButton.setAttribute('aria-label', `Move ${sample.fileName} to ${state.routes[1 - routeIdx].name}`);
+    swapButton.addEventListener('click', () => swapSample(routeIdx, sampleIdx));
+
+    row.append(name, swapButton);
+    listEl.append(row);
+  });
+}
+
+function clearAllSampleSyncState() {
+  for (const route of state.routes) {
+    for (const sample of route.samples) {
+      sample.syncStartIdx = null;
+      sample.syncTimeline = null;
+    }
+  }
+}
+
+function swapSample(fromRouteIdx, sampleIdx) {
+  clearError();
+  stopPlayback();
+  const fromRoute = state.routes[fromRouteIdx];
+  const toRoute = state.routes[1 - fromRouteIdx];
+  const [sample] = fromRoute.samples.splice(sampleIdx, 1);
+  if (!sample) return;
+
+  sample.layerGroup?.remove();
+  sample.marker?.remove();
+  sample.layerGroup = L.layerGroup().addTo(map);
+  sample.marker = null;
+  sample.syncStartIdx = null;
+  sample.syncTimeline = null;
+  sample.id = `${toRoute.id}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+
+  toRoute.samples.push(sample);
+
+  redrawAllRoutes();
+  updateFileName(0, state.routes[0].samples.map((item) => item.fileName));
+  updateFileName(1, state.routes[1].samples.map((item) => item.fileName));
+
+  if (state.startLine && state.routes.every((route) => route.samples.length > 0)) {
+    attemptSyncAndPreparePlayback();
+  } else {
+    clearAllSampleSyncState();
+    resetPlaybackState();
+    renderAtTime(0);
+  }
 }
 
 function parseGpx(xmlText) { /* unchanged */

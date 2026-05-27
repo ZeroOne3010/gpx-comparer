@@ -254,3 +254,43 @@ input:disabled {
   text-decoration: underline;
   opacity: 1;
 }
+
+
+.file-list {
+  display: grid;
+  gap: 0.35rem;
+  min-height: 0.2rem;
+}
+
+.file-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  border: 1px solid #d9eed1;
+  border-radius: 8px;
+  padding: 0.3rem 0.45rem;
+  background: #fbfff9;
+}
+
+.file-list-name {
+  color: #365748;
+  font-size: 0.84rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swap-button {
+  border: 1px solid #b7ddb0;
+  background: #ebfce4;
+  color: #24563b;
+  font-weight: 700;
+  padding: 0.1rem 0.42rem;
+  border-radius: 999px;
+  line-height: 1.1;
+}
+
+.swap-button:hover:not(:disabled) {
+  background: #d9f8cf;
+}
