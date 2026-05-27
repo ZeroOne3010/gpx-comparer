@@ -209,6 +209,15 @@ function renderFileListForRoute(routeIdx) {
   });
 }
 
+function clearAllSampleSyncState() {
+  for (const route of state.routes) {
+    for (const sample of route.samples) {
+      sample.syncStartIdx = null;
+      sample.syncTimeline = null;
+    }
+  }
+}
+
 function swapSample(fromRouteIdx, sampleIdx) {
   clearError();
   stopPlayback();
@@ -234,6 +243,7 @@ function swapSample(fromRouteIdx, sampleIdx) {
   if (state.startLine && state.routes.every((route) => route.samples.length > 0)) {
     attemptSyncAndPreparePlayback();
   } else {
+    clearAllSampleSyncState();
     resetPlaybackState();
     renderAtTime(0);
   }
